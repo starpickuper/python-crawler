@@ -1,0 +1,167 @@
+# encode：utf-8
+import requests
+import re
+import pymysql
+import time
+
+'''
+<span class="title">肖申克的救赎</span>
+'''
+# 爬虫
+# url迭代
+url_list = ['https://movie.douban.com/top250?start=0&filter=', 'https://movie.douban.com/top250?start=25&filter=',
+            'https://movie.douban.com/top250?start=50&filter=', 'https://movie.douban.com/top250?start=75&filter=',
+            'https://movie.douban.com/top250?start=100&filter=', 'https://movie.douban.com/top250?start=125&filter=',
+            'https://movie.douban.com/top250?start=150&filter=', 'https://movie.douban.com/top250?start=175&filter=',
+            'https://movie.douban.com/top250?start=200&filter=', 'https://movie.douban.com/top250?start=225&filter=']
+# 正则表达式处理
+# # re.S可以让re中的.匹配换行符
+obj = re.compile(
+    r'.*?<div class="hd">.*?<a href="(?P<detial>.*?)" class="">.*?<span class="title">(?P<title>.*?)</span>.*?<p class="">.*?导演: .*?<br>(?P<year>.*?)&nbsp;/&nbsp;(?P<country>.*?)&nbsp;/&nbsp;(?P<type>.*?)</p>.*?<span class="rating_num" property="v:average">(?P<score>.*?)</span>.*?<span property="v:best" content="10.0"></span>.*?<span>(?P<population>.*?)人评价</span>.*?</div>',
+    re.S)
+# 请求头参数及cookie
+# 因为请求头和cookie借助网站生成,检测连接成功,所以并未细致处理
+cookies = {
+    'douban-fav-remind': '1',
+    '__utmv': '30149280.23033',
+    'll': '"108088"',
+    'bid': 'xq9h-9DeDC8',
+    '__gads': 'ID=ef691d2e3fc1a90e-22a5b9241ed3005b:T=1652106675:RT=1652106675:S=ALNI_MbymA4dUCvI0lpA6DBVkmZ5aj3M8Q',
+    '_pk_ref.100001.4cf6': '%5B%22%22%2C%22%22%2C1665053761%2C%22https%3A%2F%2Fcn.bing.com%2F%22%5D',
+    '_pk_id.100001.4cf6': 'c049794d0513c094.1665053761.1.1665053761.1665053761.',
+    '_pk_ses.100001.4cf6': '*',
+    'ap_v': '0,6.0',
+    '__utma': '30149280.442286170.1652106674.1662822992.1665053762.10',
+    '__utmb': '30149280.0.10.1665053762',
+    '__utmc': '30149280',
+    '__utmz': '30149280.1665053762.10.4.utmcsr=cn.bing.com|utmccn=(referral)|utmcmd=referral|utmcct=/',
+    '__utma': '223695111.1030649737.1665053762.1665053762.1665053762.1',
+    '__utmb': '223695111.0.10.1665053762',
+    '__utmc': '223695111',
+    '__utmz': '223695111.1665053762.1.1.utmcsr=cn.bing.com|utmccn=(referral)|utmcmd=referral|utmcct=/',
+    '__gpi': 'UID=000006bcc5fe672a:T=1655535556:RT=1665053762:S=ALNI_MbbUcFdseoB7mB2ndKc7NYsFx1saQ',
+}
+
+headers = {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6,ja;q=0.5',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    # Requests sorts cookies= alphabetically
+    # 'Cookie': 'douban-fav-remind=1; __utmv=30149280.23033; ll="108088"; bid=xq9h-9DeDC8; __gads=ID=ef691d2e3fc1a90e-22a5b9241ed3005b:T=1652106675:RT=1652106675:S=ALNI_MbymA4dUCvI0lpA6DBVkmZ5aj3M8Q; _pk_ref.100001.4cf6=%5B%22%22%2C%22%22%2C1665053761%2C%22https%3A%2F%2Fcn.bing.com%2F%22%5D; _pk_id.100001.4cf6=c049794d0513c094.1665053761.1.1665053761.1665053761.; _pk_ses.100001.4cf6=*; ap_v=0,6.0; __utma=30149280.442286170.1652106674.1662822992.1665053762.10; __utmb=30149280.0.10.1665053762; __utmc=30149280; __utmz=30149280.1665053762.10.4.utmcsr=cn.bing.com|utmccn=(referral)|utmcmd=referral|utmcct=/; __utma=223695111.1030649737.1665053762.1665053762.1665053762.1; __utmb=223695111.0.10.1665053762; __utmc=223695111; __utmz=223695111.1665053762.1.1.utmcsr=cn.bing.com|utmccn=(referral)|utmcmd=referral|utmcct=/; __gpi=UID=000006bcc5fe672a:T=1655535556:RT=1665053762:S=ALNI_MbbUcFdseoB7mB2ndKc7NYsFx1saQ',
+    'Pragma': 'no-cache',
+    'Referer': 'https://cn.bing.com/',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'cross-site',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36 Edg/106.0.1370.34',
+    'sec-ch-ua': '"Chromium";v="106", "Microsoft Edge";v="106", "Not;A=Brand";v="99"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+}
+# 数据容器创建
+detials = []
+population = []
+titles = []
+types = []
+rating_nums = []
+years = []
+countries = []
+# 遍历请求
+n = 1
+for url in url_list:
+    response = requests.get(url, cookies=cookies, headers=headers)
+    # print(response)
+    html = response.text
+    response.close()
+    time.sleep(1.5)
+    results = obj.finditer(html)
+    for result in results:
+        titles.append(result.group('title'))
+        types.append(result.group('type').strip())
+        years.append(result.group('year').strip())
+        rating_nums.append(result.group('score'))
+        population.append(result.group('population'))
+        # sayings.append(result.group('saying'))
+        countries.append(result.group('country'))
+        detials.append(result.group('detial'))
+    print(f'第{n}页获取完成')
+    n += 1
+    # print('titles:', len(titles), 'type:', len(types), 'years:', len(years), 'scores:', len(rating_nums), 'countries:',
+    #   len(countries), 'population:', len(population))
+
+# 用pandas创建DataFrame
+# df = pd.DataFrame({
+#     "title": titles,
+#     "country": countries,
+#     "detial": detials,
+#     "type": types,
+#     "year": years,
+#     "rating_nums": rating_nums,
+#     "population": population
+# },
+#     columns=['title', 'country', 'detial', 'type', 'year', 'rating_num', 'population']
+# )
+# print(df)
+# create_engine('mysql+pymysql://用户名:密码@主机/库名?charset=utf8')
+# engine = create_engine('mysql+pymysql://root:123456@localhost/atguigudb?charset=utf8mb4')
+# # 将数据写入sql
+# pd.io.sql.to_sql(df, '豆瓣TOP250', con=engine, if_exists='append', index="False")
+
+# conn = pymysql.Connection(
+#     # host='localhost',  # 主机名
+#     host='127.0.0.1',  # ip地址：127.0.0.1
+#     port=3306,  # 端口号
+#     user='root',  # 用户名
+#     password='123456',  # 密码
+#     autocommit=True  #  修改操作的确认
+# )
+# print(conn.charset)  # utf8mb4
+# print(conn.get_server_info())  # 打印连接sql的信息
+# # 创建游标对象，对数据库进行操作
+# cursor = conn.cursor()
+# print(conn.get_host_info())
+# #  选择数据库
+# conn.select_db('atguigudb')
+# # 执行sql
+# cursor.execute('select * from employees')
+# # print(cursor.execute('create table test_pymysql(id int)'))  # 创建
+# print()
+# 关闭连接
+# cursor.close() # 游标关闭
+# conn.close()  # 连接关闭
+# 创建数据库连接
+conn = pymysql.Connection(host='localhost', user='root', port=3306, password='123456',db='atguigudb',
+                          autocommit=True)  # 默认commit为True，即默认可修改数据库
+# 检查连接是否成功
+# print(conn.get_server_info())  # 8.0.29
+# 创建游标对象
+cursor = conn.cursor()  # 用来对数据库操作
+
+
+# 创建表
+# cursor.execute(
+#     "CREATE TABLE IF NOT EXISTS douban_movie(title VARCHAR(20) NOT NULL,typ VARCHAR(10) NOT NULL,years DATE NOT NULL,country VARCHAR(50) NOT NULL,score FLOAT NOT NULL,population INT NOT NULL,detial VARCHAR(100) NOT NULL)")
+# 数据处理格式化[(元组)(元组)]及排错
+years[54] = 1961  # 导入数据库报错,与year类型不符,原格式为 '1961(中国大陆) / 1964(中国大陆) / 1978(中国大陆)'
+years[176] = 1982  # 导入数据库报错,与year类型不符,原格式为 '1982(中国大陆)'
+top250data = list(zip(titles, types, years, countries, rating_nums, population, detials))
+
+
+# li = [i for i in range(1,251)]
+# top250data_1 = list(zip(li,titles, types, years, countries, rating_nums, population, detials))  #用于debug,排错
+# for i in top250data_1:
+#     print(i)
+
+
+# 导入到本地mysql
+
+# 执行操作语句
+sql="insert into douban_movie values(%s,%s,%s,%s,%s,%s,%s)"  # sql插入语句
+# cursor.executemany(sql语句,data)   data传入分两种格式:1.元组嵌套元组((元组)元组);2:列表嵌套元组[()]
+cursor.executemany(sql,top250data)
+# 关闭操作
+cursor.close()  # 关闭游标对象
+conn.cursor() # 关闭mysql连接
